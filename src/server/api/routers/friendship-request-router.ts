@@ -147,9 +147,10 @@ export const friendshipRequestRouter = router({
          *  - https://kysely-org.github.io/kysely/classes/Kysely.html#insertInto
          *  - https://kysely-org.github.io/kysely/classes/Kysely.html#updateTable
          */
-        // Update status 'accepted'
+
         const [userId, friendUserId] = [ctx.session.userId, input.friendUserId]
 
+        // Update status 'accepted'
         await t
           .updateTable('friendships')
           .set({ status: 'accepted' })
@@ -157,7 +158,7 @@ export const friendshipRequestRouter = router({
           .where('friendships.friendUserId', '=', userId)
           .execute()
 
-        // // Flag data: 2 requests at the same time (2 case)
+        // Flag data: 2 requests at the same time (2 case)
         const dataFlag = await t
           .selectFrom('friendships')
           .select(['userId'])
@@ -205,6 +206,7 @@ export const friendshipRequestRouter = router({
        * Documentation references:
        *  - https://vitest.dev/api/#test-skip
        */
+
       // Update status 'declined'
       const [userId, friendUserId] = [ctx.session.userId, input.friendUserId]
       return await ctx.db
