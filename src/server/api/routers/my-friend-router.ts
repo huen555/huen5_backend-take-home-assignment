@@ -20,6 +20,32 @@ export const myFriendRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
+      // Create a query to get the number of mutual friends
+      const mutualFriendCount = (db: Database) => {
+        return db
+          .selectFrom('friendships')
+          .innerJoin(
+            ctx.db
+              .selectFrom('friendships')
+              .select(['userId', 'friendUserId'])
+              .where('userId', '=', input.friendUserId)
+              .where('status', '=', FriendshipStatusSchema.Values['accepted'])
+              .as('acceptedFriendships'),
+            'friendships.friendUserId',
+            'acceptedFriendships.friendUserId'
+          )
+          .select((eb) => [
+            'acceptedFriendships.userId',
+            eb.fn.count('friendships.friendUserId').as('mutualFriendCount'),
+          ])
+          .where('friendships.userId', '=', ctx.session.userId)
+          .where(
+            'friendships.status',
+            '=',
+            FriendshipStatusSchema.Values['accepted']
+          )
+          .groupBy('acceptedFriendships.userId')
+      }
       return ctx.db.connection().execute(async (conn) =>
         /**
          * Question 4: Implement mutual friend count
@@ -47,6 +73,13 @@ export const myFriendRouter = router({
             'userTotalFriendCount.userId',
             'friends.id'
           )
+
+          // Connect to query data
+          .leftJoin(
+            mutualFriendCount(conn).as('mutualFriendCountData'),
+            'mutualFriendCountData.userId',
+            'friends.id'
+          )
           .where('friendships.userId', '=', ctx.session.userId)
           .where('friendships.friendUserId', '=', input.friendUserId)
           .where(
@@ -59,6 +92,9 @@ export const myFriendRouter = router({
             'friends.fullName',
             'friends.phoneNumber',
             'totalFriendCount',
+
+            // Targeted results
+            'mutualFriendCount',
           ])
           .executeTakeFirstOrThrow(() => new TRPCError({ code: 'NOT_FOUND' }))
           .then(

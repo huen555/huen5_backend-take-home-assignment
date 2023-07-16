@@ -79,14 +79,44 @@ export const friendshipRequestRouter = router({
        * scenario for Question 3
        *  - Run `yarn test` to verify your answer
        */
-      return ctx.db
-        .insertInto('friendships')
-        .values({
-          userId: ctx.session.userId,
-          friendUserId: input.friendUserId,
-          status: FriendshipStatusSchema.Values['requested'],
-        })
+      // return ctx.db
+      //   .insertInto('friendships')
+      //   .values({
+      //     userId: ctx.session.userId,
+      //     friendUserId: input.friendUserId,
+      //     status: FriendshipStatusSchema.Values['requested'],
+      //   })
+      //   .execute()
+
+      const [userId, friendUserId] = [ctx.session.userId, input.friendUserId]
+
+      // Flag data: have been declined friend request? (2 case)
+      const dataFlag = await ctx.db
+        .selectFrom('friendships')
+        .select(['userId'])
+        .where('userId', '=', userId)
+        .where('friendUserId', '=', friendUserId)
+        .where('status', '=', 'declined')
         .execute()
+      if (Object.keys(dataFlag).length === 0) {
+        // Case 1: not refused yet
+        return ctx.db
+          .insertInto('friendships')
+          .values({
+            userId: ctx.session.userId,
+            friendUserId: input.friendUserId,
+            status: FriendshipStatusSchema.Values['requested'],
+          })
+          .execute()
+      } else {
+        // case 2: refused
+        return ctx.db
+          .updateTable('friendships')
+          .set({ status: 'requested' })
+          .where('friendships.userId', '=', userId)
+          .where('friendships.friendUserId', '=', friendUserId)
+          .execute()
+      }
     }),
 
   accept: procedure
@@ -117,6 +147,44 @@ export const friendshipRequestRouter = router({
          *  - https://kysely-org.github.io/kysely/classes/Kysely.html#insertInto
          *  - https://kysely-org.github.io/kysely/classes/Kysely.html#updateTable
          */
+        // Update status 'accepted'
+        const [userId, friendUserId] = [ctx.session.userId, input.friendUserId]
+
+        await t
+          .updateTable('friendships')
+          .set({ status: 'accepted' })
+          .where('friendships.userId', '=', friendUserId)
+          .where('friendships.friendUserId', '=', userId)
+          .execute()
+
+        // // Flag data: 2 requests at the same time (2 case)
+        const dataFlag = await t
+          .selectFrom('friendships')
+          .select(['userId'])
+          .where('userId', '=', userId)
+          .where('friendUserId', '=', friendUserId)
+          .where('status', '=', 'requested')
+          .execute()
+
+        if (Object.keys(dataFlag).length === 0) {
+          // Case 1: only 1 request
+          await t
+            .insertInto('friendships')
+            .values({
+              userId: userId,
+              friendUserId: friendUserId,
+              status: 'accepted',
+            })
+            .execute()
+        } else {
+          // case 2: 2 requests at the same time
+          await t
+            .updateTable('friendships')
+            .set({ status: 'accepted' })
+            .where('friendships.userId', '=', userId)
+            .where('friendships.friendUserId', '=', friendUserId)
+            .execute()
+        }
       })
     }),
 
@@ -137,5 +205,14 @@ export const friendshipRequestRouter = router({
        * Documentation references:
        *  - https://vitest.dev/api/#test-skip
        */
+      // Update status 'declined'
+      const [userId, friendUserId] = [ctx.session.userId, input.friendUserId]
+      return await ctx.db
+        .updateTable('friendships')
+        .set({ status: 'declined' })
+        .where('friendships.userId', '=', friendUserId)
+        .where('friendships.friendUserId', '=', userId)
+        .where('friendships.status', '=', 'requested')
+        .execute()
     }),
 })

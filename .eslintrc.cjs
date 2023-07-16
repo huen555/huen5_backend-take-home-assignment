@@ -58,7 +58,9 @@ module.exports = {
         'newlines-between': 'always',
       },
     ],
-    'prettier/prettier': 'error',
+    // 'prettier/prettier': 'error',
+    // Config prettier
+    'prettier/prettier': 0,
   },
   overrides: [
     {
