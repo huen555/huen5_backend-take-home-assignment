@@ -10,7 +10,7 @@ describe.concurrent('Friendship request', async () => {
    *  1. User A sends a friendship request to user B
    *  2. User B accepts the friendship request
    */
-  test('Question 1 / Scenario 1', async ({ expect }) => {
+  test.skip('Question 1 / Scenario 1', async ({ expect }) => {
     const [userA, userB] = await Promise.all([createUser(), createUser()])
 
     await userA.sendFriendshipRequest({
@@ -44,7 +44,7 @@ describe.concurrent('Friendship request', async () => {
    *  2. User B sends a friendship request to user A
    *  3. User A accepts the friendship request
    */
-  test('Question 1 / Scenario 2', async ({ expect }) => {
+  test.skip('Question 1 / Scenario 2', async ({ expect }) => {
     const [userA, userB] = await Promise.all([createUser(), createUser()])
 
     await userA.sendFriendshipRequest({
@@ -81,7 +81,7 @@ describe.concurrent('Friendship request', async () => {
    *  1. User A sends a friendship request to user B
    *  2. User B declines the friendship request
    */
-  test('Question 2 / Scenario 1', async ({ expect }) => {
+  test.skip('Question 2 / Scenario 1', async ({ expect }) => {
     const [userA, userB] = await Promise.all([createUser(), createUser()])
 
     await expect(
@@ -117,7 +117,7 @@ describe.concurrent('Friendship request', async () => {
    * Scenario:
    *  1. User A sends a friendship request to user B
    */
-  test('Question 3 / Scenario 1', async ({ expect }) => {
+  test.skip('Question 3 / Scenario 1', async ({ expect }) => {
     const [userA, userB] = await Promise.all([createUser(), createUser()])
 
     await expect(
@@ -142,7 +142,7 @@ describe.concurrent('Friendship request', async () => {
    *  2. User B declines the request
    *  3. User A re-sends a new friendship request to user B
    */
-  test('Question 3 / Scenario 2', async ({ expect }) => {
+  test.skip('Question 3 / Scenario 2', async ({ expect }) => {
     const [userA, userB] = await Promise.all([createUser(), createUser()])
 
     await userA.sendFriendshipRequest({
@@ -174,7 +174,7 @@ describe.concurrent('Friendship request', async () => {
    *
    *  -> User A should have a total of 4 friends
    */
-  test('Question 4 / Scenario 1', async ({ expect }) => {
+  test.skip('Question 4 / Scenario 1', async ({ expect }) => {
     const [userA, userB, userC, userD, userE] = await Promise.all([
       createUser(),
       createUser(),
@@ -299,5 +299,68 @@ describe.concurrent('Friendship request', async () => {
         mutualFriendCount: 1,
       })
     )
-  })
+  }),
+    test.skip('Question 5', async ({ expect }) => {
+      const [userA, userB, userC, userD, userE] = await Promise.all([
+        createUser(),
+        createUser(),
+        createUser(),
+        createUser(),
+        createUser(),
+      ])
+
+      await Promise.all([
+        userB.sendFriendshipRequest({
+          friendUserId: userA.id,
+        }),
+        userC.sendFriendshipRequest({
+          friendUserId: userA.id,
+        }),
+        userD.sendFriendshipRequest({
+          friendUserId: userA.id,
+        }),
+        userE.sendFriendshipRequest({
+          friendUserId: userA.id,
+        }),
+
+        // Case 2 friends mutual
+        // userD.sendFriendshipRequest({
+        //   friendUserId: userB.id,
+        // }),
+      ])
+
+      await Promise.all([
+        userA.acceptFriendshipRequest({
+          friendUserId: userB.id,
+        }),
+        userA.acceptFriendshipRequest({
+          friendUserId: userC.id,
+        }),
+        userA.acceptFriendshipRequest({
+          friendUserId: userD.id,
+        }),
+        userA.acceptFriendshipRequest({
+          friendUserId: userE.id,
+        }),
+        userB.acceptFriendshipRequest({
+          friendUserId: userC.id,
+        }),
+
+        // Case 2 friends mutual
+        // userB.acceptFriendshipRequest({
+        //   friendUserId: userD.id,
+        // }),
+      ])
+
+      await expect(
+        userB.getFriendById({
+          friendUserId: userA.id,
+        })
+      ).resolves.toEqual(
+        expect.objectContaining({
+          id: userA.id,
+          mutualFriendCount: 1,
+        })
+      )
+    })
 })

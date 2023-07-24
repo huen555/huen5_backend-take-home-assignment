@@ -1,8 +1,7 @@
-import type { Database } from '@/server/db'
-
 import { TRPCError } from '@trpc/server'
 import { z } from 'zod'
 
+import { db, type Database } from '@/server/db'
 import { FriendshipStatusSchema } from '@/utils/server/friendship-schemas'
 import { protectedProcedure } from '@/server/trpc/procedures'
 import { router } from '@/server/trpc/router'
@@ -13,12 +12,13 @@ import {
 } from '@/utils/server/base-schemas'
 
 export const myFriendRouter = router({
-  getById: protectedProcedure
+  getById1: protectedProcedure
     .input(
       z.object({
         friendUserId: IdSchema,
       })
     )
+
     .mutation(async ({ ctx, input }) => {
       // Create a query to get the number of mutual friends
       const mutualFriendCount = (db: Database) => {
@@ -65,6 +65,7 @@ export const myFriendRouter = router({
          * Documentation references:
          *  - https://kysely-org.github.io/kysely/classes/SelectQueryBuilder.html#innerJoin
          */
+
         conn
           .selectFrom('users as friends')
           .innerJoin('friendships', 'friendships.friendUserId', 'friends.id')
@@ -106,6 +107,266 @@ export const myFriendRouter = router({
               mutualFriendCount: CountSchema,
             }).parse
           )
+      )
+    }),
+
+  getById: protectedProcedure
+    .input(
+      z.object({
+        friendUserId: IdSchema,
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      // const infoFriendCount1 = (db: Database) => {
+      //   // eslint-disable-next-line no-console
+      //   console.log(input)
+      //   return db
+      //     .selectFrom('friendships')
+      //     .leftJoin('users', 'users.id', 'friendships.userId')
+      //     .select(['friendships.userId', 'users.fullName', 'users.phoneNumber'])
+      //     .where('friendships.userId', '=', ctx.session.userId)
+      //     .where(
+      //       'friendships.status',
+      //       '=',
+      //       FriendshipStatusSchema.Values['accepted']
+      //     )
+      // }
+
+      // const usersDb = await db
+      //   .selectFrom('users')
+      //   .select(['users.id', 'users.fullName', 'users.phoneNumber'])
+
+      //   .execute()
+
+      // const friendshipsDb = await db
+      //   .selectFrom('friendships')
+      //   .select([
+      //     'friendships.userId',
+      //     'friendships.friendUserId',
+      //     'friendships.status',
+      //   ])
+      //   .where(
+      //     'friendships.status',
+      //     '=',
+      //     FriendshipStatusSchema.Values['accepted']
+      //   )
+      //   .execute()
+
+      const informationOfAllFriends = await db
+        .selectFrom('friendships')
+        .innerJoin(
+          ctx.db
+            .selectFrom('friendships')
+            .select(['userId', 'friendUserId'])
+            .where('status', '=', FriendshipStatusSchema.Values['accepted'])
+            .as('f1'),
+          'friendships.friendUserId',
+          'f1.userId'
+        )
+        .leftJoin(
+          ctx.db
+            .selectFrom('friendships')
+            .innerJoin(
+              ctx.db
+                .selectFrom('friendships')
+                .select(['userId', 'friendUserId'])
+                .where('status', '=', FriendshipStatusSchema.Values['accepted'])
+                .as('f2'),
+              'friendships.friendUserId',
+              'f2.userId'
+            )
+            .innerJoin(
+              ctx.db
+                .selectFrom('friendships')
+                .select(['friendships.userId', 'friendships.friendUserId'])
+                .where('friendships.userId', '=', input.friendUserId)
+                .where(
+                  'friendships.status',
+                  '=',
+                  FriendshipStatusSchema.Values['accepted']
+                )
+                .as('result'),
+              'result.friendUserId',
+              'f2.friendUserId'
+            )
+            .select((eb) => [
+              'f2.userId',
+              eb.fn.count('f2.friendUserId').as('mutualFriendCount'),
+            ])
+            .where('friendships.userId', '=', input.friendUserId)
+            .where(
+              'friendships.status',
+              '=',
+              FriendshipStatusSchema.Values['accepted']
+            )
+            .groupBy('f2.userId')
+            .as('f3'),
+          'f3.userId',
+          'friendships.friendUserId'
+        )
+        .leftJoin('users', 'users.id', 'friendships.friendUserId')
+        .where(
+          'friendships.status',
+          '=',
+          FriendshipStatusSchema.Values['accepted']
+        )
+        .where('friendships.userId', '=', input.friendUserId)
+        .select((eb) => [
+          'friendships.userId',
+          'friendships.friendUserId',
+          'users.fullName',
+          'users.phoneNumber',
+          eb.fn.count('friendships.friendUserId').as('totalFriendCount'),
+          'mutualFriendCount',
+        ])
+        .groupBy('f1.userId')
+        .execute()
+
+      // const test1 = await db
+      //   .selectFrom('friendships')
+      //   .select(['friendships.userId', 'friendships.friendUserId'])
+      //   .where('friendships.userId', '=', ctx.session.userId)
+      //   .where(
+      //     'friendships.status',
+      //     '=',
+      //     FriendshipStatusSchema.Values['accepted']
+      //   )
+      //   .execute()
+
+      // const test2 = await db
+      //   .selectFrom('friendships')
+      //   .select(['friendships.userId', 'friendships.friendUserId'])
+      //   .where('friendships.userId', '=', input.friendUserId)
+      //   .where(
+      //     'friendships.status',
+      //     '=',
+      //     FriendshipStatusSchema.Values['accepted']
+      //   )
+      //   .execute()
+
+      // const test3 = await db
+      //   .selectFrom('friendships')
+      //   .innerJoin(
+      //     ctx.db
+      //       .selectFrom('friendships')
+      //       .select(['userId', 'friendUserId'])
+      //       .where('status', '=', FriendshipStatusSchema.Values['accepted'])
+      //       .as('test4'),
+      //     'friendships.friendUserId',
+      //     'test4.userId'
+      //   )
+      //   .innerJoin(
+      //     ctx.db
+      //       .selectFrom('friendships')
+      //       .select(['friendships.userId', 'friendships.friendUserId'])
+      //       .where('friendships.userId', '=', input.friendUserId)
+      //       .where(
+      //         'friendships.status',
+      //         '=',
+      //         FriendshipStatusSchema.Values['accepted']
+      //       )
+      //       .as('result'),
+      //     'result.friendUserId',
+      //     'test4.friendUserId'
+      //   )
+      //   .select((eb) => [
+      //     'test4.userId',
+      //     eb.fn.count('test4.friendUserId').as('mutualFriendCount'),
+      //   ])
+      //   .where('friendships.userId', '=', input.friendUserId)
+      //   .where(
+      //     'friendships.status',
+      //     '=',
+      //     FriendshipStatusSchema.Values['accepted']
+      //   )
+      //   .groupBy('test4.userId')
+      //   .execute()
+
+      // const mutualFriendCount = await db
+      //   .selectFrom('friendships')
+      //   .innerJoin(
+      //     ctx.db
+      //       .selectFrom('friendships')
+      //       .select(['userId', 'friendUserId'])
+      //       .where('userId', '=', input.friendUserId)
+      //       .where('status', '=', FriendshipStatusSchema.Values['accepted'])
+      //       .as('acceptedFriendships'),
+      //     'friendships.friendUserId',
+      //     'acceptedFriendships.friendUserId'
+      //   )
+      //   .select((eb) => [
+      //     'acceptedFriendships.userId',
+      //     eb.fn.count('friendships.friendUserId').as('mutualFriendCount'),
+      //   ])
+      //   .select(['friendships.userId', 'friendships.friendUserId'])
+      //   .where('friendships.userId', '=', ctx.session.userId)
+      //   .where(
+      //     'friendships.status',
+      //     '=',
+      //     FriendshipStatusSchema.Values['accepted']
+      //   )
+      //   // .groupBy('acceptedFriendships.userId')
+      //   .execute()
+
+      // const resultDb = await db
+      //   .selectFrom('friendships')
+      //   .leftJoin('users', 'users.id', 'friendships.friendUserId')
+      //   // .leftJoin( )
+
+      //   .select([
+      //     'friendships.userId',
+      //     'users.id',
+      //     'friendships.status',
+      //     'users.fullName',
+      //     'users.phoneNumber',
+      //   ])
+      //   .where('friendships.userId', '=', input.friendUserId)
+      //   .where(
+      //     'friendships.status',
+      //     '=',
+      //     FriendshipStatusSchema.Values['accepted']
+      //   )
+      //   .execute()
+
+      // const infoFriendCount = await db
+      //   .selectFrom('friendships')
+      //   .leftJoin('users', 'users.id', 'friendships.userId')
+      //   .select(['friendships.userId', 'users.fullName', 'users.phoneNumber'])
+      //   .where('friendships.userId', '=', ctx.session.userId)
+      //   .where(
+      //     'friendships.status',
+      //     '=',
+      //     FriendshipStatusSchema.Values['accepted']
+      //   )
+      //   .execute()
+
+      // eslint-disable-next-line no-console
+      console.log(
+        '-------------------------------------------------log-------------------------------------------------'
+      )
+      // eslint-disable-next-line no-console
+      // console.log(ctx.session.userId)
+      // eslint-disable-next-line no-console
+      // console.log(input.friendUserId)
+      // eslint-disable-next-line no-console
+      // console.log(usersDb)
+      // eslint-disable-next-line no-console
+      // console.log(friendshipsDb)
+      // eslint-disable-next-line no-console
+      console.log(informationOfAllFriends)
+      // eslint-disable-next-line no-console
+      // console.log(test1)
+      // eslint-disable-next-line no-console
+      // console.log(test2)
+      // eslint-disable-next-line no-console
+      // console.log(test3)
+      // eslint-disable-next-line no-console
+      // console.log(resultDb)
+      // eslint-disable-next-line no-console
+      // console.log(infoFriendCount)
+      // eslint-disable-next-line no-console
+      console.log(
+        '------------------------------------------------endlog-----------------------------------------------'
       )
     }),
 })
